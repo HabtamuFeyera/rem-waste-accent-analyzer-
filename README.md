@@ -129,19 +129,8 @@ class Settings:
     MAX_RETRIES = 3               
 ```
 
-## Troubleshooting
+### Example Run
 
-### Common Errors
-1. **"moov atom not found"**:
-   - Ensure you're using supported video platforms
-   - Try direct video links instead of embedded players
+Here’s a sample screenshot of the analyzer’s output when running a test video URL:
 
-2. **Audio processing failures**:
-   - Verify FFmpeg and SoX are installed
-   - Check audio file permissions
-
-3. **Slow processing**:
-   - Reduce video duration to under 5 minutes
-   - Use lower resolution videos
-
-
+![Analyzer Output](file:///home/habte/rem-waste-accent-analyzer-/frontend/image/Screenshot%20from%202025-06-21%2019-39-25.png)
