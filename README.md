@@ -133,4 +133,5 @@ class Settings:
 
 Here’s a sample screenshot of the analyzer’s output when running a test video URL:
 
-![Analyzer Output](file:///home/habte/rem-waste-accent-analyzer-/frontend/image/Screenshot%20from%202025-06-21%2019-39-25.png)
+![Analyzer Output](https://github.com/HabtamuFeyera/rem-waste-accent-analyzer-/blob/main/frontend/image/Screenshot%20from%202025-06-21%2019-39-25.png?raw=true)
+
