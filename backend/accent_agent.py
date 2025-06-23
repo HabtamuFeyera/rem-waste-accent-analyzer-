@@ -1177,23 +1177,42 @@ def detect_accent(req: VideoRequest):
             plan=initial_state.get("plan", "")
         )
 
+@app.get("/")
+def root_endpoint():
+    return {
+        "service": "REM Waste Accent Analyzer",
+        "version": "1.0.0",
+        "status": "operational",
+        "endpoints": {
+            "documentation": "/docs",
+            "accent_detection": "/detect_accent",
+            "health_check": "/health"
+        },
+        "message": "Use POST /detect_accent with a video URL for accent analysis"
+    }
+
 @app.get("/health")
 def health_check():
-    sox_available = subprocess.run(
-        ["sox", "--version"], 
-        capture_output=True
-    ).returncode == 0
+
+    ffmpeg_available = shutil.which("ffmpeg") is not None
+    sox_available = shutil.which("sox") is not None
+    
+    groq_status = "connected"
+    try:
+        test_response = groq_client.generate_text("Test connection", max_tokens=5)
+        if "failed" in test_response.lower():
+            groq_status = "error"
+    except Exception:
+        groq_status = "unavailable"
     
     return {
         "status": "active",
-        "model_ready": model_pipeline is not None,
-        "groq_available": hasattr(groq_client, "client"),
-        "ffmpeg_available": subprocess.run(
-            ["ffmpeg", "-version"], 
-            capture_output=True
-        ).returncode == 0,
-        "sox_available": sox_available,
-        "version": "1.0.0"
+        "model": "loaded" if model_pipeline else "unavailable",
+        "groq": groq_status,
+        "ffmpeg": "available" if ffmpeg_available else "missing",
+        "sox": "available" if sox_available else "missing",
+        "version": "1.0.0",
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 def create_noise_profile():
