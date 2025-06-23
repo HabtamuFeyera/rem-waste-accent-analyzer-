@@ -4,7 +4,10 @@ import time
 import os
 import json
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
+
+BACKEND_URL = "https://rem-waste-accent-analyzer.onrender.com/detect_accent/"
+
+#BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
 LOGO_URL = "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=200&h=200&q=80"
 
 st.markdown(f"""
