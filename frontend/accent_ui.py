@@ -5,8 +5,13 @@ import os
 import json
 
 
-#BACKEND_URL = "https://rem-waste-accent-analyzer.onrender.com/detect_accent/"
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
+
+#BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
+
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "https://rem-waste-accent-analyzer.onrender.com")
+DETECT_ENDPOINT = f"{BACKEND_BASE_URL}/detect_accent/"
+HEALTH_ENDPOINT = f"{BACKEND_BASE_URL}/health"
+
 LOGO_URL = "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=200&h=200&q=80"
 
 st.markdown(f"""
@@ -177,10 +182,34 @@ def main():
     to receive an accent classification, confidence score, and detailed evaluation report.
     """)
     
+    # Add health check to sidebar
+    with st.sidebar:
+        st.header("Service Status")
+        if st.button("Check Backend Health"):
+            try:
+                response = requests.get(HEALTH_ENDPOINT, timeout=10)
+                if response.status_code == 200:
+                    health = response.json()
+                    st.success("✅ Backend is operational")
+                    st.json(health)
+                else:
+                    st.error(f"❌ Backend error: {response.text}")
+            except Exception as e:
+                st.error(f"Connection failed: {str(e)}")
+        
+        st.divider()
+        st.info("""
+        **How to Use:**
+        1. Paste a public video URL
+        2. Supported platforms: YouTube, Loom, Vimeo
+        3. Direct MP4 links also accepted
+        4. Analysis takes 1-3 minutes
+        """)
+    
     with st.form("accent_form"):
         video_url = st.text_input(
             "Video URL*", 
-            placeholder="https://www.loom.com/share/...",
+            placeholder="https://www.youtube.com/watch?v=...",
             help="Supported: downloadable Loom, YouTube, Vimeo, direct MP4/MOV links"
         )
         
@@ -197,31 +226,51 @@ def main():
             st.error("Please enter a valid video URL")
             return
             
-        with st.spinner("Analyzing accent... This may take 1-2 minutes"):
-            start_time = time.time()
-            try:
-                response = requests.post(
-                    BACKEND_URL,
-                    json={"video_url": video_url, "goal": goal},
-                    timeout=180
-                )
-            except requests.exceptions.RequestException as e:
-                st.error(f"Connection to backend failed: {str(e)}")
-                return
-                
-            processing_time = time.time() - start_time
+        # Show processing status with real-time updates
+        status_container = st.empty()
+        progress_bar = st.progress(0)
+        status_messages = [
+            "Validating video URL...",
+            "Downloading video content...",
+            "Extracting audio features...",
+            "Classifying accent...",
+            "Generating evaluation report..."
+        ]
+        
+        try:
+            # Initialize request
+            status_container.info(status_messages[0])
+            progress_bar.progress(10)
             
-        if response.status_code == 200:
-            results = response.json()
-            display_results(results, processing_time)
-        else:
-            try:
-                error = response.json().get("detail", response.text)
-            except:
-                error = response.text
-            st.error(f"Analysis failed: {error[:500]}")
+            # Make the API request
+            response = requests.post(
+                DETECT_ENDPOINT,
+                json={"video_url": video_url, "goal": goal},
+                timeout=180
+            )
+            
+            # Update status as we get response
+            progress_bar.progress(100)
+            
+            if response.status_code == 200:
+                results = response.json()
+                display_results(results)
+            else:
+                try:
+                    error = response.json().get("detail", response.text)
+                except:
+                    error = response.text
+                st.error(f"Analysis failed: {error[:500]}")
+                
+        except requests.exceptions.Timeout:
+            st.error("Analysis timed out (over 3 minutes). Try a shorter video.")
+        except Exception as e:
+            st.error(f"Unexpected error: {str(e)}")
+        finally:
+            progress_bar.empty()
+            status_container.empty()
 
-def display_results(results: dict, processing_time: float):
+def display_results(results: dict):
     """Display analysis results in a structured format"""
     status = "success" if results["status"] == "success" else "error"
     status_text = "Completed" if status == "success" else "Failed"
@@ -238,13 +287,14 @@ def display_results(results: dict, processing_time: float):
         return
     
     accent_class = "other"
-    if "american" in results["accent"].lower():
+    accent = results["accent"].lower()
+    if "american" in accent:
         accent_class = "american"
-    elif "british" in results["accent"].lower():
+    elif "british" in accent:
         accent_class = "british"
-    elif "australian" in results["accent"].lower():
+    elif "australian" in accent:
         accent_class = "australian"
-    elif "non-english" in results["accent"].lower():
+    elif "non-english" in accent:
         accent_class = "non-english"
     
     st.markdown(f"""
@@ -269,7 +319,7 @@ def display_results(results: dict, processing_time: float):
         
         <div class="metric-card">
             <div class="metric-label">Processing Time</div>
-            <div class="metric-value">{processing_time:.1f}s</div>
+            <div class="metric-value">{results['processing_time']:.1f}s</div>
             <div class="progress-bar">
                 <div class="progress-fill" style="width: 100%; background: #8b5cf6;"></div>
             </div>
@@ -278,13 +328,20 @@ def display_results(results: dict, processing_time: float):
     </div>
     """, unsafe_allow_html=True)
     
-    st.subheader("Evaluation Summary")
-    st.markdown(f'<div class="summary-card">{results["summary"]}</div>', unsafe_allow_html=True)
+    # Split summary from coaching recommendations
+    summary = results["summary"]
+    coaching = ""
     
-    if "Coaching Recommendations" in results["summary"] or "coaching" in results["summary"].lower():
+    if "**Coaching Recommendations:**" in summary:
+        summary, coaching = summary.split("**Coaching Recommendations:**", 1)
+        coaching = f"**Coaching Recommendations:**{coaching}"
+    
+    st.subheader("Evaluation Summary")
+    st.markdown(f'<div class="summary-card">{summary}</div>', unsafe_allow_html=True)
+    
+    if coaching:
         st.subheader("Pronunciation Coaching")
-        coaching_text = results["summary"].split("**Coaching Recommendations:**")[-1]
-        st.markdown(f'<div class="coaching-card">{coaching_text}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="coaching-card">{coaching}</div>', unsafe_allow_html=True)
     
     st.subheader("Execution Plan")
     st.markdown(f'<div class="plan-card">{results["plan"]}</div>', unsafe_allow_html=True)
@@ -307,7 +364,7 @@ def display_results(results: dict, processing_time: float):
     
     st.markdown("""
     <div class="footer">
-        REM Waste Hiring Toolkit • Results are estimates only • Developed by Habtamu!
+        REM Waste Hiring Toolkit • Results are estimates only • Developed by Habtamu
     </div>
     """, unsafe_allow_html=True)
 
