@@ -28,7 +28,7 @@ from langgraph.graph import StateGraph, END
 #Configuration
 class Settings:
     def __init__(self):
-        self.GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+        self.GROQ_API_KEY = os.getenv("GROQ_API_KEY", "Enter your groq_api_key")
         self.MODEL_PATH = os.path.join(os.path.dirname(__file__), "accent_model_v2.joblib")
         self.MIN_AUDIO_SEC = 3.0
         self.MAX_AUDIO_SEC = 600.0
