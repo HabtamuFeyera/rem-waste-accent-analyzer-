@@ -3,21 +3,10 @@ import requests
 import time
 import os
 import json
-import shutil 
 
 
-#BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
-# Load secrets
-try:
-    BACKEND_BASE_URL = st.secrets["env"]["BACKEND_BASE_URL"]
-    GROQ_API_KEY = st.secrets["connections"]["groq_api_key"]
-except (KeyError, FileNotFoundError):
-    BACKEND_BASE_URL = "https://rem-waste-accent-analyzer.onrender.com"
-    GROQ_API_KEY = "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"
-
-DETECT_ENDPOINT = f"{BACKEND_BASE_URL}/detect_accent/"
-HEALTH_ENDPOINT = f"{BACKEND_BASE_URL}/health"
-
+#BACKEND_URL = os.getenv("BACKEND_URL", "https://rem-waste-accent-analyzer.onrender.com/detect_accent/")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
 LOGO_URL = "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=200&h=200&q=80"
 
 st.markdown(f"""
@@ -53,7 +42,7 @@ st.markdown(f"""
     }}
     
     .title {{
-        font-size: 28px;
+        font-size: 32px;
         font-weight: 700;
         color: #0f172a;
         margin: 0;
@@ -61,7 +50,7 @@ st.markdown(f"""
     
     .subtitle {{
         color: #64748b;
-        font-size: 14px;
+        font-size: 16px;
         margin: 4px 0 0 0;
     }}
     
@@ -89,7 +78,7 @@ st.markdown(f"""
     }}
     
     .metric-value {{
-        font-size: 24px;
+        font-size: 28px;
         font-weight: 700;
         margin: 8px 0;
     }}
@@ -163,14 +152,6 @@ st.markdown(f"""
     }}
     
     @media (max-width: 768px) {{
-        .header {{
-            flex-direction: column;
-            text-align: center;
-            gap: 8px;
-        }}
-        .title {{
-            font-size: 24px;
-        }}
         .metrics-container {{
             grid-template-columns: 1fr;
         }}
@@ -191,39 +172,15 @@ def main():
     """, unsafe_allow_html=True)
     
     st.write("""
-    This agentic AI system analyzes video recordings to evaluate candidates' English speaking proficiency. 
-    Upload a video URL from any supported platform (Loom, YouTube, Vimeo, or direct MP4 link) 
+    This agentic AI systems analyzes video recordings to evaluate candidates' English speaking proficiency. 
+    Upload a video URL from any supported downloadable platform like(Loom, YouTube, Vimeo, or direct MP4 link) 
     to receive an accent classification, confidence score, and detailed evaluation report.
     """)
-    
-    # Add health check to sidebar
-    with st.sidebar:
-        st.header("Service Status")
-        if st.button("Check Backend Health"):
-            try:
-                response = requests.get(HEALTH_ENDPOINT, timeout=10)
-                if response.status_code == 200:
-                    health = response.json()
-                    st.success("✅ Backend is operational")
-                    st.json(health)
-                else:
-                    st.error(f"❌ Backend error: {response.text}")
-            except Exception as e:
-                st.error(f"Connection failed: {str(e)}")
-        
-        st.divider()
-        st.info("""
-        **How to Use:**
-        1. Paste a public video URL
-        2. Supported platforms: YouTube, Loom, Vimeo
-        3. Direct MP4 links also accepted
-        4. Analysis takes 1-3 minutes
-        """)
     
     with st.form("accent_form"):
         video_url = st.text_input(
             "Video URL*", 
-            placeholder="https://www.youtube.com/watch?v=...",
+            placeholder="https://www.loom.com/share/...",
             help="Supported: downloadable Loom, YouTube, Vimeo, direct MP4/MOV links"
         )
         
@@ -233,60 +190,40 @@ def main():
             help="Customize the analysis focus (e.g., 'for technical support role')"
         )
         
-        submitted = st.form_submit_button("Analyze Accent", use_container_width=True)
+        submitted = st.form_submit_button("Analyze Accent")
     
     if submitted:
         if not video_url:
             st.error("Please enter a valid video URL")
             return
             
-        # Show processing status with real-time updates
-        status_container = st.empty()
-        progress_bar = st.progress(0)
-        status_messages = [
-            "Validating video URL...",
-            "Downloading video content...",
-            "Extracting audio features...",
-            "Classifying accent...",
-            "Generating evaluation report..."
-        ]
-        
-        try:
-            # Simulate progress updates
-            for i, message in enumerate(status_messages):
-                status_container.info(f"**Step {i+1}/{len(status_messages)}:** {message}")
-                progress_bar.progress((i + 1) * 20)
-                time.sleep(0.5)  # Simulate processing time
-            
-            # Make the API request
-            response = requests.post(
-                DETECT_ENDPOINT,
-                json={"video_url": video_url, "goal": goal},
-                timeout=180
-            )
-            
-            if response.status_code == 200:
-                results = response.json()
-                display_results(results)
-            else:
-                try:
-                    error = response.json().get("detail", response.text)
-                except:
-                    error = response.text
-                st.error(f"Analysis failed: {error[:500]}")
+        with st.spinner("Analyzing accent... This may take 1-2 minutes"):
+            start_time = time.time()
+            try:
+                response = requests.post(
+                    BACKEND_URL,
+                    json={"video_url": video_url, "goal": goal},
+                    timeout=180
+                )
+            except requests.exceptions.RequestException as e:
+                st.error(f"Connection to backend failed: {str(e)}")
+                return
                 
-        except requests.exceptions.Timeout:
-            st.error("Analysis timed out (over 3 minutes). Try a shorter video.")
-        except Exception as e:
-            st.error(f"Unexpected error: {str(e)}")
-        finally:
-            progress_bar.empty()
-            status_container.empty()
+            processing_time = time.time() - start_time
+            
+        if response.status_code == 200:
+            results = response.json()
+            display_results(results, processing_time)
+        else:
+            try:
+                error = response.json().get("detail", response.text)
+            except:
+                error = response.text
+            st.error(f"Analysis failed: {error[:500]}")
 
-
-def display_results(results: dict):
+def display_results(results: dict, processing_time: float):
     """Display analysis results in a structured format"""
-    status = "success" if results.get("status") == "success" else "error"
+    status = "success" if results["status"] == "success" else "error"
     status_text = "Completed" if status == "success" else "Failed"
     
     st.markdown(f"""
@@ -300,43 +237,32 @@ def display_results(results: dict):
         st.error("Processing failed. Please try another video or check the URL.")
         return
     
-    # Get values safely with defaults
-    accent = results.get("accent", "Unknown")
-    confidence = results.get("confidence", 0.0)
-    english_score = results.get("english_score", 0.0)
-    processing_time = results.get("processing_time", 0.0)
-    request_id = results.get("request_id", "N/A")
-    summary = results.get("summary", "No summary available")
-    plan = results.get("plan", "No execution plan available")
-    
-    # Determine accent class for styling
     accent_class = "other"
-    accent_lower = accent.lower()
-    if "american" in accent_lower:
+    if "american" in results["accent"].lower():
         accent_class = "american"
-    elif "british" in accent_lower:
+    elif "british" in results["accent"].lower():
         accent_class = "british"
-    elif "australian" in accent_lower:
+    elif "australian" in results["accent"].lower():
         accent_class = "australian"
-    elif "non-english" in accent_lower or "non english" in accent_lower:
+    elif "non-english" in results["accent"].lower():
         accent_class = "non-english"
     
     st.markdown(f"""
     <div class="metrics-container">
         <div class="metric-card">
             <div class="metric-label">Accent Classification</div>
-            <div class="metric-value accent-{accent_class}">{accent}</div>
+            <div class="metric-value accent-{accent_class}">{results['accent']}</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: {confidence * 100:.1f}%; background: #3b82f6;"></div>
+                <div class="progress-fill" style="width: {results['confidence']*100:.1f}%; background: #3b82f6;"></div>
             </div>
-            <div class="metric-label">{confidence * 100:.1f}% Confidence</div>
+            <div class="metric-label">{results['confidence']*100:.1f}% Confidence</div>
         </div>
         
         <div class="metric-card">
             <div class="metric-label">English Proficiency</div>
-            <div class="metric-value">{english_score:.1f}/100</div>
+            <div class="metric-value">{results['english_score']:.1f}/100</div>
             <div class="progress-bar">
-                <div class="progress-fill" style="width: {english_score:.1f}%; background: {'#10b981' if english_score >= 70 else '#f59e0b'};"></div>
+                <div class="progress-fill" style="width: {results['english_score']:.1f}%; background: {'#10b981' if results['english_score'] >= 70 else '#f59e0b'};"></div>
             </div>
             <div class="metric-label">Hiring Threshold: 70/100</div>
         </div>
@@ -347,51 +273,43 @@ def display_results(results: dict):
             <div class="progress-bar">
                 <div class="progress-fill" style="width: 100%; background: #8b5cf6;"></div>
             </div>
-            <div class="metric-label">Request ID: {request_id}</div>
+            <div class="metric-label">Request ID: {results['request_id']}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Split summary from coaching recommendations
-    coaching = ""
-    if "**Coaching Recommendations:**" in summary:
-        parts = summary.split("**Coaching Recommendations:**", 1)
-        if len(parts) > 1:
-            summary, coaching = parts
-            coaching = f"**Coaching Recommendations:**{coaching}"
-    
     st.subheader("Evaluation Summary")
-    st.markdown(f'<div class="summary-card">{summary}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="summary-card">{results["summary"]}</div>', unsafe_allow_html=True)
     
-    if coaching:
+    if "Coaching Recommendations" in results["summary"] or "coaching" in results["summary"].lower():
         st.subheader("Pronunciation Coaching")
-        st.markdown(f'<div class="coaching-card">{coaching}</div>', unsafe_allow_html=True)
+        coaching_text = results["summary"].split("**Coaching Recommendations:**")[-1]
+        st.markdown(f'<div class="coaching-card">{coaching_text}</div>', unsafe_allow_html=True)
     
     st.subheader("Execution Plan")
-    st.markdown(f'<div class="plan-card">{plan}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="plan-card">{results["plan"]}</div>', unsafe_allow_html=True)
     
     with st.expander("Technical Details"):
         st.json(results)
     
     st.markdown("---")
     st.subheader("Feedback")
-    col1, col2, col3 = st.columns([1,1,1])
+    col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("👍 Accurate", use_container_width=True, key="accurate"):
-            st.toast("Thanks for your feedback!", icon="👍")
+        if st.button("👍 Accurate", use_container_width=True):
+            st.success("Thanks for your feedback!")
     with col2:
-        if st.button("👎 Inaccurate", use_container_width=True, key="inaccurate"):
-            st.toast("We'll use this to improve our system", icon="👎")
+        if st.button("👎 Inaccurate", use_container_width=True):
+            st.info("We'll use this to improve our system")
     with col3:
-        if st.button("🤔 Unsure", use_container_width=True, key="unsure"):
-            st.toast("We'll review this analysis", icon="🤔")
+        if st.button("🤔 Unsure", use_container_width=True):
+            st.info("We'll review this analysis")
     
     st.markdown("""
     <div class="footer">
-        REM Waste Hiring Toolkit • Results are estimates only • Developed by Habtamu
+        REM Waste Hiring Toolkit • Results are estimates only • Developed by Habtamu!
     </div>
     """, unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     main()
