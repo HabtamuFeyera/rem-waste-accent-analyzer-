@@ -7,9 +7,14 @@ import shutil
 
 
 #BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/detect_accent/")
+# Load secrets
+try:
+    BACKEND_BASE_URL = st.secrets["env"]["BACKEND_BASE_URL"]
+    GROQ_API_KEY = st.secrets["connections"]["groq_api_key"]
+except (KeyError, FileNotFoundError):
+    BACKEND_BASE_URL = "https://rem-waste-accent-analyzer.onrender.com"
+    GROQ_API_KEY = "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"
 
-# Corrected backend URL configuration
-BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "https://rem-waste-accent-analyzer.onrender.com")
 DETECT_ENDPOINT = f"{BACKEND_BASE_URL}/detect_accent/"
 HEALTH_ENDPOINT = f"{BACKEND_BASE_URL}/health"
 
