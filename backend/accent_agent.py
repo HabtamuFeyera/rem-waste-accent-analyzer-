@@ -974,6 +974,21 @@ def after_audio_extract_reflection(state: AgentState) -> str:
     if state.get("error"):
         return "cleanup"
     
+    audio_valid = False
+    if state.get("temp_files") and len(state["temp_files"]) > 1:
+        audio_path = state["temp_files"][-1]
+        if os.path.exists(audio_path) and os.path.getsize(audio_path) > 1024:  # 1KB min
+            try:
+                y, sr = librosa.load(audio_path, sr=None, mono=False, duration=0.1)
+                if len(y) > 0:
+                    audio_valid = True
+            except:
+                pass
+    
+    if audio_valid:
+        logger.info(f"[{state['request_id']}] Audio validation successful")
+        return "preprocess_audio"
+    
     decision = state.get("reflection_decision", "A")
     step_name = "extract_audio"
     retry_count = state["retry_count"].get(step_name, 0)
